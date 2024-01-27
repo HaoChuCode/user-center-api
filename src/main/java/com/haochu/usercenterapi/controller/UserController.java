@@ -76,6 +76,19 @@ public class UserController {
         return userService.deleteUser(id, request);
     }
 
+    @GetMapping("/current")
+    public User getCurrentUser(HttpServletRequest request){
+        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATUS);
+        User currentUser = (User) userObj;
+        if(currentUser == null){
+            return null;
+        }
+        long userId = currentUser.getId();
+        //todo 校验用户是否合法
+        User byIdUser = userService.getById(userId);
+        return userService.getSafetyUser(byIdUser);
+    }
+
     /**
      * 是否为管理员
      *

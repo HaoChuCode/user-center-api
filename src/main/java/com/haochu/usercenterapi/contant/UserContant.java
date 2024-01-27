@@ -14,5 +14,5 @@ public interface UserContant {
      * 用户角色
      */
     int DEFAULT_ROLE = 0;
-    int ADMIN_ROLE = 0;
+    int ADMIN_ROLE = 1;
 }

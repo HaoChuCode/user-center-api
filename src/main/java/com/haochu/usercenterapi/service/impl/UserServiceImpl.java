@@ -157,7 +157,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      * @param user 用户信息
      * @return 脱敏后的用户信息
      */
-    private User getSafetyUser(User user) {
+    public User getSafetyUser(User user) {
+        if(user == null) {
+            return null;
+        }
         User safetyUser = new User();
         safetyUser.setId(user.getId());
         safetyUser.setUsername(user.getUsername());

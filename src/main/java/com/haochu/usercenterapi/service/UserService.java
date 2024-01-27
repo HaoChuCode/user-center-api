@@ -51,5 +51,5 @@ public interface UserService extends IService<User> {
      * @return 是否删除成功
      */
     boolean deleteUser(long id, HttpServletRequest request);
-
+    User getSafetyUser(User user);
 }
