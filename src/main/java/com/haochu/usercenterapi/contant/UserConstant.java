@@ -5,7 +5,7 @@ package com.haochu.usercenterapi.contant;
  *
  * @author haochu
  */
-public interface UserContant {
+public interface UserConstant {
     /**
      * 用户登录态键
      */
@@ -15,4 +15,6 @@ public interface UserContant {
      */
     int DEFAULT_ROLE = 0;
     int ADMIN_ROLE = 1;
+
+    String DEFAULT_AVATAR = "https://img0.baidu.com/it/u=2129614842,1677647463&fm=253&fmt=auto&app=138&f=JPEG?w=540&h=500";
 }

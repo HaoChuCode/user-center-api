@@ -5,6 +5,8 @@ import java.util.Date;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.haochu.usercenterapi.common.ErrorCode;
+import com.haochu.usercenterapi.exception.BusinessException;
 import com.haochu.usercenterapi.service.UserService;
 import com.haochu.usercenterapi.model.User;
 import com.haochu.usercenterapi.mapper.UserMapper;
@@ -19,7 +21,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.haochu.usercenterapi.contant.UserContant.USER_LOGIN_STATUS;
+import static com.haochu.usercenterapi.contant.UserConstant.DEFAULT_AVATAR;
+import static com.haochu.usercenterapi.contant.UserConstant.USER_LOGIN_STATUS;
 
 /**
  * 用户服务实现类
@@ -41,33 +44,34 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
 
     @Override
-    public long userRegister(String userAccount, String userPassword, String checkPassword) {
+    public long userRegister(String userAccount, String userPassword, String registerCode, String checkPassword) {
         //校验
-        if (!StringUtils.isNoneBlank(userAccount, userPassword, checkPassword)) {
-            return -1;
+        if (!StringUtils.isNoneBlank(userAccount, registerCode ,userPassword, checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"其中有参数为空");
         }
-        if (userAccount.length() < 4) {
-            return -2;
-        }
-        if (userPassword.length() < 6) {
-            return -3;
-        }
+        //账户和密码过短
+        userParamsLess(userAccount,userPassword);
 
         //账户不能包含特殊字符
-        Matcher matcher = Pattern.compile(validPattern).matcher(userAccount);
-        if (!matcher.find()) {
-            return -4;
-        }
+        userAccountError(userAccount);
+
         //密码和校验码是否相同
         if (!userPassword.equals(checkPassword)) {
-            return -5;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"两次密码不一致");
         }
         //账户重复
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("user_account", userAccount);
         long count = userMapper.selectCount(queryWrapper);
         if (count > 0) {
-            return -6;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"账户已存在");
+        }
+        //注册编号重复
+        queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("register_code", registerCode);
+        count = userMapper.selectCount(queryWrapper);
+        if (count > 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"该注册码已使用");
         }
 
         //加密密码
@@ -76,10 +80,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         //插入数据
         User user = new User();
         user.setUserAccount(userAccount);
+        user.setRegisterCode(registerCode);
         user.setUserPassword(md5Password);
+        user.setAvatar(DEFAULT_AVATAR);
         boolean saveResult = this.save(user);
         if (!saveResult) {
-            return -7;
+            throw new BusinessException(ErrorCode.INSERT_DATA_ERROR,"插入用户数据失败");
         }
         return user.getId();
     }
@@ -88,20 +94,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     public User userLogin(String userAccount, String userPassword, HttpServletRequest request) {
         //校验
         if (!StringUtils.isNoneBlank(userAccount, userPassword)) {
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"其中有参数为空");
         }
-        if (userAccount.length() < 4) {
-            return null;
-        }
-        if (userPassword.length() < 6) {
-            return null;
-        }
-
+        //账户和密码过短
+        userParamsLess(userAccount,userPassword);
         //账户不能包含特殊字符
-        Matcher matcher = Pattern.compile(validPattern).matcher(userAccount);
-        if (!matcher.find()) {
-            return null;
-        }
+        userAccountError(userAccount);
 
         //加密密码
         String md5Password = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
@@ -115,7 +113,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         //用户不存在
         if (user == null) {
             log.info("user login failed, userAccount cannot match userPassword");
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户不存在");
         }
 
         //用户脱敏
@@ -145,24 +143,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     @Override
     public boolean deleteUser(long id, HttpServletRequest request) {
         if (id <= 0) {
-            return false;
+            throw new BusinessException(ErrorCode.DELETE_DATA_ERROR,"该用户ID不存在");
         }
         return this.removeById(id);
     }
 
-
-    /**
-     * 用户脱敏
-     *
-     * @param user 用户信息
-     * @return 脱敏后的用户信息
-     */
     public User getSafetyUser(User user) {
         if(user == null) {
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_NUll_ERROR);
         }
         User safetyUser = new User();
         safetyUser.setId(user.getId());
+        safetyUser.setRegisterCode(user.getRegisterCode());
         safetyUser.setUsername(user.getUsername());
         safetyUser.setUserAccount(user.getUserAccount());
         safetyUser.setAvatar(user.getAvatar());
@@ -173,6 +165,41 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         safetyUser.setUserRole(user.getUserRole());
         safetyUser.setCreateTime(user.getCreateTime());
         return safetyUser;
+    }
+
+    /**
+     * 用户注销
+     * @param request http返回
+     */
+    @Override
+    public int userLogout(HttpServletRequest request) {
+        request.getSession().removeAttribute(USER_LOGIN_STATUS);
+        return 1;
+    }
+
+    /**
+     * 登录注册参数过短
+     * @param userAccount 用户账户
+     * @param userPassword 用户密码
+     */
+    private void userParamsLess(String userAccount,String userPassword){
+        if (userAccount.length() < 4) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户账号长度不能小于4");
+        }
+        if (userPassword.length() < 6) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户密码长度不能小于6");
+        }
+    }
+
+    /**
+     * 账户包含特殊字符
+     * @param userAccount 账户名
+     */
+    private void userAccountError(String userAccount){
+        Matcher matcher = Pattern.compile(validPattern).matcher(userAccount);
+        if (!matcher.find()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"账户不能包含特殊字符");
+        }
     }
 
 

@@ -1,9 +1,14 @@
 package com.haochu.usercenterapi.controller;
 
+import com.haochu.usercenterapi.common.BaseResponse;
+import com.haochu.usercenterapi.common.ErrorCode;
+import com.haochu.usercenterapi.common.ResultUtils;
+import com.haochu.usercenterapi.exception.BusinessException;
 import com.haochu.usercenterapi.model.User;
 import com.haochu.usercenterapi.model.request.UserLoginRequest;
 import com.haochu.usercenterapi.model.request.UserRegisterRequest;
 import com.haochu.usercenterapi.service.UserService;
+import lombok.val;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,8 +16,8 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
-import static com.haochu.usercenterapi.contant.UserContant.ADMIN_ROLE;
-import static com.haochu.usercenterapi.contant.UserContant.USER_LOGIN_STATUS;
+import static com.haochu.usercenterapi.contant.UserConstant.ADMIN_ROLE;
+import static com.haochu.usercenterapi.contant.UserConstant.USER_LOGIN_STATUS;
 
 /**
  * 用户接口
@@ -27,66 +32,82 @@ public class UserController {
     private UserService userService;
 
     @PostMapping("/register")
-    public Long userRegister(
+    public BaseResponse<Long> userRegister(
             @RequestBody UserRegisterRequest userRegisterRequest
     ) {
         if (userRegisterRequest == null) {
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         String userAccount = userRegisterRequest.getUserAccount();
         String userPassword = userRegisterRequest.getUserPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
-        if (!StringUtils.isNoneBlank(userAccount, userPassword, checkPassword)) {
+        String registerCode = userRegisterRequest.getRegisterCode();
+        if (!StringUtils.isNoneBlank(userAccount, userPassword,registerCode, checkPassword)) {
             return null;
         }
-        return userService.userRegister(userAccount, userPassword, checkPassword);
+        long result = userService.userRegister(userAccount, userPassword, registerCode, checkPassword);
+        return ResultUtils.success(result);
     }
 
     @PostMapping("/login")
-    public User userRegister(
+    public BaseResponse<User> userRegister(
             @RequestBody UserLoginRequest userLoginRequest,
             HttpServletRequest request
     ) {
         if (userLoginRequest == null) {
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         String userAccount = userLoginRequest.getUserAccount();
         String userPassword = userLoginRequest.getUserPassword();
         if (!StringUtils.isNoneBlank(userAccount, userPassword)) {
             return null;
         }
-        return userService.userLogin(userAccount, userPassword, request);
+        User result = userService.userLogin(userAccount, userPassword, request);
+        return ResultUtils.success(result);
+    }
+    @PostMapping("/logout")
+    public BaseResponse<Integer> userLogout(
+            HttpServletRequest request
+    ) {
+        if(request == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        int result = userService.userLogout(request);
+        return ResultUtils.success(result);
     }
 
+
     @GetMapping("list")
-    public List<User> listUsers(@RequestParam(required = false) String username, HttpServletRequest request) {
+    public BaseResponse<List<User>> listUsers(@RequestParam(required = false) String username, HttpServletRequest request) {
         //鉴权 是否位管理员
         if (!isAdmin(request)) {
-            return null;
+            throw new BusinessException(ErrorCode.NO_AUTH);
         }
-        return userService.listUsers(username, request);
+        List<User> result = userService.listUsers(username, request);
+        return ResultUtils.success(result);
     }
 
     @PostMapping("delete")
-    public boolean deleteUser(@RequestBody long id, HttpServletRequest request) {
+    public BaseResponse<Boolean> deleteUser(@RequestBody long id, HttpServletRequest request) {
         //鉴权 是否位管理员
         if (!isAdmin(request)) {
-            return false;
+            throw new BusinessException(ErrorCode.NO_AUTH);
         }
-        return userService.deleteUser(id, request);
+        boolean result = userService.deleteUser(id, request);
+        return ResultUtils.success(result);
     }
 
     @GetMapping("/current")
-    public User getCurrentUser(HttpServletRequest request){
+    public BaseResponse<User> getCurrentUser(HttpServletRequest request){
         Object userObj = request.getSession().getAttribute(USER_LOGIN_STATUS);
         User currentUser = (User) userObj;
         if(currentUser == null){
-            return null;
+            throw new BusinessException(ErrorCode.NO_LOGIN);
         }
         long userId = currentUser.getId();
-        //todo 校验用户是否合法
         User byIdUser = userService.getById(userId);
-        return userService.getSafetyUser(byIdUser);
+        User result = userService.getSafetyUser(byIdUser);
+        return ResultUtils.success(result);
     }
 
     /**

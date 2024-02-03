@@ -21,6 +21,11 @@ public class User implements Serializable {
     private Long id;
 
     /**
+     * 注册编号
+     */
+    private String registerCode;
+
+    /**
      * 用户昵称
      */
     private String username;
